@@ -72,10 +72,10 @@ function statePhaseToDb(phase) {
 
 async function dbLoadAll() {
   const [projectsRes, phasesRes, membersRes, rolesRes] = await Promise.all([
-    supabase.from('projects').select('*').order('created_at', { ascending: true }),
-    supabase.from('phases').select('*').order('sort_order', { ascending: true }),
-    supabase.from('team_members').select('*').order('created_at', { ascending: true }),
-    supabase.from('roles').select('*').order('sort_order', { ascending: true }),
+    supabaseClient.from('projects').select('*').order('created_at', { ascending: true }),
+    supabaseClient.from('phases').select('*').order('sort_order', { ascending: true }),
+    supabaseClient.from('team_members').select('*').order('created_at', { ascending: true }),
+    supabaseClient.from('roles').select('*').order('sort_order', { ascending: true }),
   ]);
 
   if (projectsRes.error) console.error('Load projects error:', projectsRes.error);
@@ -134,13 +134,13 @@ async function dbUpdateProject(id, updates) {
   if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
   if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
 
-  const { error } = await supabase.from('projects').update(dbUpdates).eq('id', id);
+  const { error } = await supabaseClient.from('projects').update(dbUpdates).eq('id', id);
   if (error) console.error('Update project error:', error);
 }
 
 async function dbDeleteProject(id) {
   // Phases are deleted automatically by ON DELETE CASCADE
-  const { error } = await supabase.from('projects').delete().eq('id', id);
+  const { error } = await supabaseClient.from('projects').delete().eq('id', id);
   if (error) console.error('Delete project error:', error);
 }
 
@@ -148,7 +148,7 @@ async function dbDeleteProject(id) {
 
 async function dbCreatePhases(phasesArray) {
   const rows = phasesArray.map(statePhaseToDb);
-  const { data, error } = await supabase.from('phases').insert(rows).select();
+  const { data, error } = await supabaseClient.from('phases').insert(rows).select();
   if (error) { console.error('Create phases error:', error); return []; }
   return data;
 }
@@ -165,7 +165,7 @@ async function dbUpdatePhase(id, updates) {
   if (updates.blockedReason !== undefined) dbUpdates.blocked_reason = updates.blockedReason;
   if (updates.sortOrder !== undefined) dbUpdates.sort_order = updates.sortOrder;
 
-  const { error } = await supabase.from('phases').update(dbUpdates).eq('id', id);
+  const { error } = await supabaseClient.from('phases').update(dbUpdates).eq('id', id);
   if (error) console.error('Update phase error:', error);
 }
 
@@ -186,25 +186,25 @@ async function dbBatchUpdatePhases(phasesArray) {
     sort_order: p.sortOrder || 1,
   }));
 
-  const { error } = await supabase.from('phases').upsert(rows);
+  const { error } = await supabaseClient.from('phases').upsert(rows);
   if (error) console.error('Batch update phases error:', error);
 }
 
 async function dbDeletePhase(id) {
-  const { error } = await supabase.from('phases').delete().eq('id', id);
+  const { error } = await supabaseClient.from('phases').delete().eq('id', id);
   if (error) console.error('Delete phase error:', error);
 }
 
 // ── TEAM MEMBERS ──
 
 async function dbAddTeamMember(name) {
-  const { error } = await supabase.from('team_members').insert({ name });
+  const { error } = await supabaseClient.from('team_members').insert({ name });
   if (error) console.error('Add member error:', error);
 }
 
 async function dbRemoveTeamMember(name) {
   // ON DELETE SET NULL on roles.assigned_to handles cleanup
-  const { error } = await supabase.from('team_members').delete().eq('name', name);
+  const { error } = await supabaseClient.from('team_members').delete().eq('name', name);
   if (error) console.error('Remove member error:', error);
 }
 
@@ -212,17 +212,17 @@ async function dbRemoveTeamMember(name) {
 
 async function dbAddRole(name) {
   const maxOrder = state.roles.length;
-  const { error } = await supabase.from('roles').insert({ name, sort_order: maxOrder + 1 });
+  const { error } = await supabaseClient.from('roles').insert({ name, sort_order: maxOrder + 1 });
   if (error) console.error('Add role error:', error);
 }
 
 async function dbRemoveRole(name) {
-  const { error } = await supabase.from('roles').delete().eq('name', name);
+  const { error } = await supabaseClient.from('roles').delete().eq('name', name);
   if (error) console.error('Remove role error:', error);
 }
 
 async function dbRenameRole(oldName, newName) {
-  const { error } = await supabase.from('roles').update({ name: newName }).eq('name', oldName);
+  const { error } = await supabaseClient.from('roles').update({ name: newName }).eq('name', oldName);
   if (error) console.error('Rename role error:', error);
 }
 
@@ -246,7 +246,7 @@ async function dbAssignRole(roleName, memberName) {
 // ── REALTIME SUBSCRIPTIONS ──
 
 function setupRealtimeSubscriptions() {
-  supabase
+  supabaseClient
     .channel('db-changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, handleRealtimeChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'phases' }, handleRealtimeChange)
