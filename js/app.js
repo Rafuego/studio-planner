@@ -1492,10 +1492,16 @@ function hideTooltip() {
 // ============================================================
 
 async function init() {
-  document.getElementById('app').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#888;font-size:14px;">Loading...</div>';
-  await dbLoadAll();
-  render();
-  setupRealtimeSubscriptions();
+  const app = document.getElementById('app');
+  app.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#888;font-size:14px;">Loading...</div>';
+  try {
+    await dbLoadAll();
+    render();
+    setupRealtimeSubscriptions();
+  } catch (err) {
+    console.error('Init error:', err);
+    app.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#ef4444;font-size:14px;flex-direction:column;gap:8px;"><div>Failed to connect to database</div><div style="font-size:12px;color:#888;">Check browser console for details</div></div>';
+  }
 }
 
 init();
