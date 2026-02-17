@@ -114,7 +114,7 @@ async function dbLoadAll() {
 // ── PROJECT CRUD ──
 
 async function dbCreateProject(projectData) {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from('projects')
     .insert(stateProjectToDb(projectData))
     .select()
