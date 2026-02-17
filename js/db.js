@@ -75,19 +75,33 @@ async function dbLoadAll() {
     supabase.from('projects').select('*').order('created_at', { ascending: true }),
     supabase.from('phases').select('*').order('sort_order', { ascending: true }),
     supabase.from('team_members').select('*').order('created_at', { ascending: true }),
-    supabase.from('roles').select('*, team_members(name)').order('sort_order', { ascending: true }),
+    supabase.from('roles').select('*').order('sort_order', { ascending: true }),
   ]);
+
+  if (projectsRes.error) console.error('Load projects error:', projectsRes.error);
+  if (phasesRes.error) console.error('Load phases error:', phasesRes.error);
+  if (membersRes.error) console.error('Load members error:', membersRes.error);
+  if (rolesRes.error) console.error('Load roles error:', rolesRes.error);
 
   state.projects = (projectsRes.data || []).map(dbProjectToState);
   state.phases = (phasesRes.data || []).map(dbPhaseToState);
-  state.teamMembers = (membersRes.data || []).map(m => m.name);
 
-  // Rebuild roles + roleAssignments from the joined query
+  // Build members list
+  const membersData = membersRes.data || [];
+  state.teamMembers = membersData.map(m => m.name);
+
+  // Build a lookup of member id -> name for role assignments
+  const memberIdToName = {};
+  for (const m of membersData) {
+    memberIdToName[m.id] = m.name;
+  }
+
+  // Rebuild roles + roleAssignments using the member lookup
   state.roles = (rolesRes.data || []).map(r => r.name);
   state.roleAssignments = {};
   for (const r of (rolesRes.data || [])) {
-    if (r.team_members && r.team_members.name) {
-      state.roleAssignments[r.name] = r.team_members.name;
+    if (r.assigned_to && memberIdToName[r.assigned_to]) {
+      state.roleAssignments[r.name] = memberIdToName[r.assigned_to];
     }
   }
 
