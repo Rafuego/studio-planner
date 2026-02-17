@@ -229,14 +229,14 @@ async function dbRenameRole(oldName, newName) {
 async function dbAssignRole(roleName, memberName) {
   let memberId = null;
   if (memberName) {
-    const { data } = await supabase
+    const { data } = await supabaseClient
       .from('team_members')
       .select('id')
       .eq('name', memberName)
       .single();
     if (data) memberId = data.id;
   }
-  const { error } = await supabase
+  const { error } = await supabaseClient
     .from('roles')
     .update({ assigned_to: memberId })
     .eq('name', roleName);
