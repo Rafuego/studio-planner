@@ -492,13 +492,16 @@ function renderThisWeek() {
     p.status !== 'Done' && p.startDate && p.endDate &&
     p.startDate <= weekEnd && p.endDate >= weekStart
   ).sort((a, b) => {
-    // Sort by status priority first (active work on top), then by due date
+    // Sort by status priority, then owner alphabetical, then due date
     const STATUS_PRIORITY = ['In Progress', 'In Review', 'Revisions', 'Waiting on Client', 'Not Started'];
     const ai = STATUS_PRIORITY.indexOf(a.status);
     const bi = STATUS_PRIORITY.indexOf(b.status);
     const aPri = ai === -1 ? 999 : ai;
     const bPri = bi === -1 ? 999 : bi;
     if (aPri !== bPri) return aPri - bPri;
+    const aOwner = (a.owner || 'zzz').toLowerCase();
+    const bOwner = (b.owner || 'zzz').toLowerCase();
+    if (aOwner !== bOwner) return aOwner.localeCompare(bOwner);
     return (a.endDate || '').localeCompare(b.endDate || '');
   });
 
@@ -510,12 +513,21 @@ function renderThisWeek() {
     <table class="data-table"><thead><tr><th>Phase</th><th>Project</th><th>Owner</th><th>Status</th><th>Due</th><th>Blocked</th></tr></thead><tbody>`;
 
   let lastStatus = '';
+  let lastOwner = '';
   for (const phase of phases) {
     // Insert a status group header row when the status changes
     if (phase.status !== lastStatus) {
       lastStatus = phase.status;
+      lastOwner = '';
       const statusClass = 'badge-status-' + phase.status.toLowerCase().replace(/\s+/g, '-');
       html += `<tr><td colspan="6" style="padding:10px 12px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim);border-bottom:1px solid var(--border);background:var(--surface)"><span class="badge ${statusClass}" style="margin-right:6px">${phase.status}</span></td></tr>`;
+    }
+    // Insert an owner sub-header when owner changes within a status group
+    const ownerKey = phase.owner || 'Unassigned';
+    if (ownerKey !== lastOwner) {
+      lastOwner = ownerKey;
+      const ownerColor = getOwnerColor(ownerKey);
+      html += `<tr><td colspan="6" style="padding:6px 12px 2px;font-size:11px;font-weight:600;color:var(--text-dim);border-bottom:1px solid var(--border)"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${ownerColor};margin-right:6px;vertical-align:middle"></span>${ownerKey}</td></tr>`;
     }
     const project = getProject(phase.projectId);
     const statusClass = 'badge-status-' + phase.status.toLowerCase().replace(/\s+/g, '-');
