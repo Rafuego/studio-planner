@@ -442,8 +442,9 @@ function renderTimeline(groupBy) {
       const left = (startIdx >= 0 ? startIdx : 0) * 36;
       const width = Math.max(((endIdx >= 0 ? endIdx : days.length - 1) - (startIdx >= 0 ? startIdx : 0) + 1) * 36 - 4, 32);
       const statusClass = 'status-' + phase.status.toLowerCase().replace(/\s+/g, '-');
+      const doneClass = phase.status === 'Done' ? ' phase-done' : '';
 
-      html += `<div class="timeline-row" style="min-width:${totalWidth}px">
+      html += `<div class="timeline-row${doneClass}" style="min-width:${totalWidth}px">
         <div class="timeline-row-label" data-phase-id="${phase.id}" data-action="edit-phase">
           <div class="phase-name">${phase.name}</div>
           <div class="project-name">${projectName}</div>
@@ -482,7 +483,7 @@ function renderBoard() {
 
     for (const phase of items) {
       const project = getProject(phase.projectId);
-      html += `<div class="board-card" data-phase-id="${phase.id}" data-action="edit-phase">
+      html += `<div class="board-card${phase.status === 'Done' ? ' phase-done' : ''}" data-phase-id="${phase.id}" data-action="edit-phase">
         <div class="card-title">${phase.name}</div>
         <div class="card-meta">
           ${project ? `<span>${project.name}</span>` : ''}
@@ -655,7 +656,7 @@ function renderProjectTable(projects) {
     const statusClass = 'badge-status-' + project.status.toLowerCase().replace(/\s+/g, '-');
     const prioClass = project.priority ? 'badge-priority-' + project.priority.substring(0, 2).toLowerCase() : '';
 
-    html += `<tr class="clickable" data-project-id="${project.id}" data-action="view-project">
+    html += `<tr class="clickable${project.status === 'Complete' ? ' phase-done' : ''}" data-project-id="${project.id}" data-action="view-project">
       <td><strong>${project.name}</strong></td>
       <td style="color:var(--text-dim)">${project.client || '—'}</td>
       <td><span class="badge ${statusClass}" style="font-size:10px">${project.type || '—'}</span></td>
@@ -1259,7 +1260,7 @@ function showViewProjectModal(projectId) {
     const ownerOpts = memberOpts.replace(`value="${phase.owner || ''}"`, `value="${phase.owner || ''}" selected`);
 
     phasesHtml += `
-      <div class="phase-list-item" data-phase-id="${phase.id}">
+      <div class="phase-list-item${phase.status === 'Done' ? ' phase-done' : ''}" data-phase-id="${phase.id}">
         <span class="phase-order">${phase.sortOrder}</span>
         <div class="phase-info">
           <div class="name">${phase.name}</div>
