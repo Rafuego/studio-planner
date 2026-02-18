@@ -108,6 +108,9 @@ let state = {
   roleAssignments: {},
 };
 
+// Track when phase modals are opened from a project detail modal
+let _returnToProjectId = null;
+
 // ============================================================
 // DATE HELPERS
 // ============================================================
@@ -1061,6 +1064,13 @@ async function saveNewPhase() {
   await dbLoadAll();
   closeModal();
   render();
+
+  // Return to project modal if we came from one
+  const returnTo = _returnToProjectId;
+  _returnToProjectId = null;
+  if (returnTo) {
+    setTimeout(() => showViewProjectModal(returnTo), 50);
+  }
 }
 
 // ============================================================
@@ -1187,6 +1197,13 @@ async function updatePhase(phaseId) {
   await dbLoadAll();
   closeModal();
   render();
+
+  // Return to project modal if we came from one
+  const returnTo = _returnToProjectId;
+  _returnToProjectId = null;
+  if (returnTo) {
+    setTimeout(() => showViewProjectModal(returnTo), 50);
+  }
 }
 
 // ============================================================
@@ -1431,10 +1448,19 @@ async function handleAction(e) {
     case 'save-phase':
       await saveNewPhase();
       break;
-    case 'edit-phase':
+    case 'edit-phase': {
+      const phaseId = target.dataset.phaseId || target.closest('[data-phase-id]')?.dataset.phaseId;
+      if (phaseId) { _returnToProjectId = null; closeModal(); setTimeout(() => showEditPhaseModal(phaseId), 50); }
+      break;
+    }
     case 'edit-phase-from-project': {
       const phaseId = target.dataset.phaseId || target.closest('[data-phase-id]')?.dataset.phaseId;
-      if (phaseId) { closeModal(); setTimeout(() => showEditPhaseModal(phaseId), 50); }
+      if (phaseId) {
+        const phase = getPhase(phaseId);
+        _returnToProjectId = phase ? phase.projectId : null;
+        closeModal();
+        setTimeout(() => showEditPhaseModal(phaseId), 50);
+      }
       break;
     }
     case 'update-phase':
@@ -1457,6 +1483,12 @@ async function handleAction(e) {
       await dbLoadAll();
       closeModal();
       render();
+      // Return to project modal if we came from one
+      const delReturnTo = _returnToProjectId;
+      _returnToProjectId = null;
+      if (delReturnTo) {
+        setTimeout(() => showViewProjectModal(delReturnTo), 50);
+      }
       break;
     }
     case 'inline-delete-phase': {
@@ -1499,6 +1531,7 @@ async function handleAction(e) {
       break;
     }
     case 'add-phase-to-project': {
+      _returnToProjectId = target.dataset.projectId;
       closeModal();
       setTimeout(() => showNewPhaseModal(target.dataset.projectId), 50);
       break;
@@ -1521,9 +1554,16 @@ async function handleAction(e) {
       }
       break;
     }
-    case 'close-modal':
+    case 'close-modal': {
       closeModal();
+      // Return to project modal if we were in a phase sub-modal
+      const closeReturnTo = _returnToProjectId;
+      _returnToProjectId = null;
+      if (closeReturnTo) {
+        setTimeout(() => showViewProjectModal(closeReturnTo), 50);
+      }
       break;
+    }
     case 'add-member': {
       const input = document.getElementById('new-member-input');
       const name = input?.value.trim();
