@@ -489,7 +489,16 @@ function renderThisWeek() {
   const phases = state.phases.filter(p =>
     p.status !== 'Done' && p.startDate && p.endDate &&
     p.startDate <= weekEnd && p.endDate >= weekStart
-  ).sort((a, b) => (a.endDate || '').localeCompare(b.endDate || ''));
+  ).sort((a, b) => {
+    // Sort by status priority first (active work on top), then by due date
+    const STATUS_PRIORITY = ['In Progress', 'In Review', 'Revisions', 'Waiting on Client', 'Not Started'];
+    const ai = STATUS_PRIORITY.indexOf(a.status);
+    const bi = STATUS_PRIORITY.indexOf(b.status);
+    const aPri = ai === -1 ? 999 : ai;
+    const bPri = bi === -1 ? 999 : bi;
+    if (aPri !== bPri) return aPri - bPri;
+    return (a.endDate || '').localeCompare(b.endDate || '');
+  });
 
   if (phases.length === 0) {
     return `<div class="empty-state"><h3>Nothing this week</h3><p>No active phases overlap with this week.</p></div>`;
@@ -498,7 +507,14 @@ function renderThisWeek() {
   let html = `<div style="margin-bottom:16px;font-size:12px;color:var(--text-dim)">Week of ${formatDate(weekStart)} – ${formatDate(weekEnd)}</div>
     <table class="data-table"><thead><tr><th>Phase</th><th>Project</th><th>Owner</th><th>Status</th><th>Due</th><th>Blocked</th></tr></thead><tbody>`;
 
+  let lastStatus = '';
   for (const phase of phases) {
+    // Insert a status group header row when the status changes
+    if (phase.status !== lastStatus) {
+      lastStatus = phase.status;
+      const statusClass = 'badge-status-' + phase.status.toLowerCase().replace(/\s+/g, '-');
+      html += `<tr><td colspan="6" style="padding:10px 12px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:var(--text-dim);border-bottom:1px solid var(--border);background:var(--surface)"><span class="badge ${statusClass}" style="margin-right:6px">${phase.status}</span></td></tr>`;
+    }
     const project = getProject(phase.projectId);
     const statusClass = 'badge-status-' + phase.status.toLowerCase().replace(/\s+/g, '-');
     html += `<tr class="clickable" data-phase-id="${phase.id}" data-action="edit-phase">
