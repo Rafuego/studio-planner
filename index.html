@@ -197,12 +197,15 @@ body {
 
 .timeline-group { border-bottom: 1px solid var(--border); }
 
+.timeline-group-header-row {
+  display: flex; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+
 .timeline-group-header {
-  display: flex; position: sticky; left: 0; padding: 8px 12px;
+  display: flex; align-items: center; position: sticky; left: 0; padding: 8px 12px;
   font-size: 12px; font-weight: 600; color: var(--text-dim);
-  background: var(--surface); border-bottom: 1px solid var(--border);
-  cursor: pointer; z-index: 5; width: fit-content; min-width: 100%;
-  border-radius: 0;
+  background: var(--surface); cursor: pointer; z-index: 5;
+  white-space: nowrap;
 }
 
 .timeline-group-header .owner-color-dot {
@@ -210,7 +213,8 @@ body {
   margin-right: 8px; flex-shrink: 0;
 }
 
-.timeline-group-header:hover { background: var(--surface2); }
+.timeline-group-header-row:hover .timeline-group-header { background: var(--surface2); }
+.timeline-group-header-row:hover { background: var(--surface2); }
 
 .timeline-row { display: flex; min-height: 36px; border-bottom: 1px solid var(--border); }
 .timeline-row:last-child { border-bottom: none; }

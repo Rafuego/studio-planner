@@ -399,7 +399,7 @@ function renderTimeline(groupBy) {
   for (const key of sortedKeys) {
     const groupPhases = groups[key];
     const ownerColor = getOwnerColor(key);
-    html += `<div class="timeline-group"><div class="timeline-group-header"><span class="owner-color-dot" style="background:${ownerColor}"></span>${key} <span class="count" style="margin-left:8px;font-weight:400;color:var(--text-muted)">${groupPhases.length}</span></div>`;
+    html += `<div class="timeline-group"><div class="timeline-group-header-row"><div class="timeline-group-header"><span class="owner-color-dot" style="background:${ownerColor}"></span>${key} <span class="count" style="margin-left:8px;font-weight:400;color:var(--text-muted)">${groupPhases.length}</span></div></div>`;
 
     for (const phase of groupPhases) {
       const project = getProject(phase.projectId);
