@@ -379,7 +379,9 @@ function renderTimeline(groupBy) {
     groups[key].sort((a, b) => a.startDate.localeCompare(b.startDate));
   }
 
-  let html = `<div class="timeline-container"><div class="timeline-header">
+  const totalWidth = 200 + days.length * 36;
+
+  let html = `<div class="timeline-container" style="--timeline-total-width:${totalWidth}px"><div class="timeline-header" style="min-width:${totalWidth}px">
     <div class="timeline-label-col">${groupBy === 'owner' ? 'Owner' : 'Discipline'}</div><div class="timeline-dates">`;
 
   for (const day of days) {
@@ -399,7 +401,7 @@ function renderTimeline(groupBy) {
   for (const key of sortedKeys) {
     const groupPhases = groups[key];
     const ownerColor = getOwnerColor(key);
-    html += `<div class="timeline-group"><div class="timeline-group-header-row"><div class="timeline-group-header"><span class="owner-color-dot" style="background:${ownerColor}"></span>${key} <span class="count" style="margin-left:8px;font-weight:400;color:var(--text-muted)">${groupPhases.length}</span></div></div>`;
+    html += `<div class="timeline-group"><div class="timeline-group-header-row" style="min-width:${totalWidth}px"><div class="timeline-group-header"><span class="owner-color-dot" style="background:${ownerColor}"></span>${key} <span class="count" style="margin-left:8px;font-weight:400;color:var(--text-muted)">${groupPhases.length}</span></div></div>`;
 
     for (const phase of groupPhases) {
       const project = getProject(phase.projectId);
@@ -410,7 +412,7 @@ function renderTimeline(groupBy) {
       const width = Math.max(((endIdx >= 0 ? endIdx : days.length - 1) - (startIdx >= 0 ? startIdx : 0) + 1) * 36 - 4, 32);
       const statusClass = 'status-' + phase.status.toLowerCase().replace(/\s+/g, '-');
 
-      html += `<div class="timeline-row">
+      html += `<div class="timeline-row" style="min-width:${totalWidth}px">
         <div class="timeline-row-label" data-phase-id="${phase.id}" data-action="edit-phase">
           <div class="phase-name">${phase.name}</div>
           <div class="project-name">${projectName}</div>
