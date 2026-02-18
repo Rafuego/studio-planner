@@ -96,6 +96,15 @@ body {
 
 .toolbar-left { display: flex; align-items: center; gap: 12px; }
 .toolbar h2 { font-size: 16px; font-weight: 600; letter-spacing: -0.02em; }
+.toolbar-search { flex: 1; display: flex; justify-content: center; }
+#search-input {
+  width: 260px; padding: 7px 12px; background: var(--surface2);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  color: var(--text); font-size: 13px; font-family: inherit;
+  transition: border-color 0.15s, background 0.15s;
+}
+#search-input:focus { border-color: var(--accent); background: var(--bg); outline: none; }
+#search-input::placeholder { color: var(--text-muted); }
 .toolbar-right { display: flex; align-items: center; gap: 8px; }
 
 .content { flex: 1; overflow: auto; padding: 24px; }

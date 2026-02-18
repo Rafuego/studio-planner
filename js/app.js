@@ -111,6 +111,29 @@ let state = {
 // Track when phase modals are opened from a project detail modal
 let _returnToProjectId = null;
 
+// Global search query — filters all views in real time
+let searchQuery = '';
+
+// Search helpers — case-insensitive match across key fields
+function projectMatchesSearch(project, q) {
+  if (!q) return true;
+  const s = q.toLowerCase();
+  return (project.name || '').toLowerCase().includes(s) ||
+    (project.client || '').toLowerCase().includes(s) ||
+    (project.lead || '').toLowerCase().includes(s) ||
+    (project.type || '').toLowerCase().includes(s);
+}
+
+function phaseMatchesSearch(phase, q) {
+  if (!q) return true;
+  const s = q.toLowerCase();
+  const project = getProject(phase.projectId);
+  return (phase.name || '').toLowerCase().includes(s) ||
+    (phase.owner || '').toLowerCase().includes(s) ||
+    (phase.discipline || '').toLowerCase().includes(s) ||
+    (project && projectMatchesSearch(project, q));
+}
+
 // ============================================================
 // DATE HELPERS
 // ============================================================
@@ -302,7 +325,10 @@ function renderToolbar() {
     rightButtons = `<button class="btn btn-primary" data-action="new-phase">+ New Phase</button>`;
   }
 
-  return `<div class="toolbar"><div class="toolbar-left"><h2>${view.label}</h2></div><div class="toolbar-right">${rightButtons}</div></div>`;
+  const showSearch = currentView !== 'settings-team';
+  const searchHtml = showSearch ? `<input type="text" id="search-input" placeholder="Search projects..." value="${searchQuery}" />` : '';
+
+  return `<div class="toolbar"><div class="toolbar-left"><h2>${view.label}</h2></div>${searchHtml ? `<div class="toolbar-search">${searchHtml}</div>` : ''}<div class="toolbar-right">${rightButtons}</div></div>`;
 }
 
 function renderContent() {
@@ -326,10 +352,12 @@ function renderContent() {
 // ============================================================
 
 function renderTimeline(groupBy) {
-  const phases = state.phases.filter(p => p.status !== 'Done' && p.startDate && p.endDate);
+  const phases = state.phases.filter(p => p.status !== 'Done' && p.startDate && p.endDate && phaseMatchesSearch(p, searchQuery));
 
   if (phases.length === 0) {
-    return `<div class="empty-state"><h3>No active phases with dates</h3><p>Create a project from a template to populate the timeline.</p></div>`;
+    return searchQuery
+      ? `<div class="empty-state"><h3>No matching phases</h3><p>No active phases match "${searchQuery}".</p></div>`
+      : `<div class="empty-state"><h3>No active phases with dates</h3><p>Create a project from a template to populate the timeline.</p></div>`;
   }
 
   let minDate = phases[0].startDate;
@@ -448,7 +476,7 @@ function renderBoard() {
   let html = `<div class="board">`;
 
   for (const status of PHASE_STATUSES) {
-    const items = state.phases.filter(p => p.status === status).sort((a, b) => (a.sortOrder - b.sortOrder) || (a.startDate || '').localeCompare(b.startDate || ''));
+    const items = state.phases.filter(p => p.status === status && phaseMatchesSearch(p, searchQuery)).sort((a, b) => (a.sortOrder - b.sortOrder) || (a.startDate || '').localeCompare(b.startDate || ''));
 
     html += `<div class="board-column"><div class="board-column-header"><span>${status}</span><span class="count">${items.length}</span></div><div class="board-column-body">`;
 
@@ -493,7 +521,8 @@ function renderThisWeek() {
 
   const phases = state.phases.filter(p =>
     p.status !== 'Done' && p.startDate && p.endDate &&
-    p.startDate <= weekEnd && p.endDate >= weekStart
+    p.startDate <= weekEnd && p.endDate >= weekStart &&
+    phaseMatchesSearch(p, searchQuery)
   ).sort((a, b) => {
     // Sort by status priority, then owner alphabetical, then due date
     const STATUS_PRIORITY = ['In Progress', 'In Review', 'Revisions', 'Waiting on Client', 'Not Started'];
@@ -509,7 +538,9 @@ function renderThisWeek() {
   });
 
   if (phases.length === 0) {
-    return `<div class="empty-state"><h3>Nothing this week</h3><p>No active phases overlap with this week.</p></div>`;
+    return searchQuery
+      ? `<div class="empty-state"><h3>No matching phases</h3><p>No phases this week match "${searchQuery}".</p></div>`
+      : `<div class="empty-state"><h3>Nothing this week</h3><p>No active phases overlap with this week.</p></div>`;
   }
 
   let html = `<div style="margin-bottom:16px;font-size:12px;color:var(--text-dim)">Week of ${formatDate(weekStart)} – ${formatDate(weekEnd)}</div>
@@ -549,7 +580,7 @@ function renderThisWeek() {
 }
 
 function renderBlocked() {
-  const phases = state.phases.filter(p => p.blocked && p.status !== 'Done')
+  const phases = state.phases.filter(p => p.blocked && p.status !== 'Done' && phaseMatchesSearch(p, searchQuery))
     .sort((a, b) => (a.endDate || '').localeCompare(b.endDate || ''));
 
   if (phases.length === 0) {
@@ -580,6 +611,7 @@ function renderBlocked() {
 function renderProjectsTable(filterStatus) {
   let projects = state.projects;
   if (filterStatus) projects = projects.filter(p => p.status === filterStatus);
+  if (searchQuery) projects = projects.filter(p => projectMatchesSearch(p, searchQuery));
 
   const activeCount = state.projects.filter(p => p.status === 'Active').length;
   const waitingCount = state.projects.filter(p => p.status === 'Waiting on Client').length;
@@ -1392,8 +1424,20 @@ async function updateProject(projectId) {
 
 function attachEvents() {
   document.querySelectorAll('.nav-item[data-view]').forEach(el => {
-    el.addEventListener('click', () => { currentView = el.dataset.view; render(); });
+    el.addEventListener('click', () => { searchQuery = ''; currentView = el.dataset.view; render(); });
   });
+
+  // Search input — re-render on typing, preserve focus
+  const searchInput = document.getElementById('search-input');
+  if (searchInput) {
+    searchInput.addEventListener('input', (e) => {
+      searchQuery = e.target.value;
+      const pos = e.target.selectionStart;
+      render();
+      const el = document.getElementById('search-input');
+      if (el) { el.focus(); el.setSelectionRange(pos, pos); }
+    });
+  }
 
   if (!attachEvents._actionBound) {
     document.addEventListener('click', handleAction);
