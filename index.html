@@ -189,6 +189,8 @@ body {
 
 .timeline-day.weekend { background: rgba(255,255,255,0.02); }
 .timeline-day.today { background: rgba(99,102,241,0.1); color: var(--accent); font-weight: 600; }
+.timeline-day.current-week { background: rgba(99,102,241,0.04); }
+.timeline-day.current-week.weekend { background: rgba(99,102,241,0.03); }
 .timeline-day .day-name { font-size: 9px; color: var(--text-muted); }
 .timeline-day .day-num { font-weight: 500; }
 .timeline-day .month-label { font-size: 9px; font-weight: 600; color: var(--text-dim); }
@@ -199,7 +201,13 @@ body {
   display: flex; position: sticky; left: 0; padding: 8px 12px;
   font-size: 12px; font-weight: 600; color: var(--text-dim);
   background: var(--surface); border-bottom: 1px solid var(--border);
-  cursor: pointer; z-index: 5;
+  cursor: pointer; z-index: 5; width: fit-content; min-width: 100%;
+  border-radius: 0;
+}
+
+.timeline-group-header .owner-color-dot {
+  display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  margin-right: 8px; flex-shrink: 0;
 }
 
 .timeline-group-header:hover { background: var(--surface2); }
@@ -223,6 +231,8 @@ body {
 .timeline-cell { min-width: 36px; max-width: 36px; flex-shrink: 0; border-right: 1px solid var(--border); }
 .timeline-cell.weekend { background: rgba(255,255,255,0.02); }
 .timeline-cell.today { background: rgba(99,102,241,0.05); }
+.timeline-cell.current-week { background: rgba(99,102,241,0.03); }
+.timeline-cell.current-week.weekend { background: rgba(99,102,241,0.02); }
 
 .timeline-bar {
   position: absolute; top: 6px; height: 24px; border-radius: 4px;

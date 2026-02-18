@@ -13,6 +13,31 @@ const PROJECT_TYPES = ['Deck', 'Web', 'Brand', 'LP', 'MVB', 'Retainer'];
 
 const DEFAULT_ROLES = ['Strategist', 'Designer', 'Developer', 'PM', 'Copywriter'];
 
+// Owner / group header color palette
+const OWNER_COLORS = [
+  '#6366f1', // indigo
+  '#ec4899', // pink
+  '#f97316', // orange
+  '#22c55e', // green
+  '#3b82f6', // blue
+  '#a855f7', // purple
+  '#eab308', // yellow
+  '#06b6d4', // cyan
+  '#ef4444', // red
+  '#14b8a6', // teal
+  '#f43f5e', // rose
+  '#8b5cf6', // violet
+];
+
+function getOwnerColor(name) {
+  if (!name || name === 'Unassigned') return '#666';
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return OWNER_COLORS[Math.abs(hash) % OWNER_COLORS.length];
+}
+
 const TEMPLATES = {
   Deck: [
     { name: 'Brief & Strategy', discipline: 'Strategy', ownerRole: 'Strategist', duration: 2 },
@@ -224,6 +249,23 @@ function render() {
   const app = document.getElementById('app');
   app.innerHTML = `${renderSidebar()}<div class="main">${renderToolbar()}<div class="content" id="content">${renderContent()}</div></div>`;
   attachEvents();
+  // Auto-scroll timeline to today
+  if (currentView.startsWith('phases-timeline')) {
+    scrollTimelineToToday();
+  }
+}
+
+function scrollTimelineToToday() {
+  setTimeout(() => {
+    const container = document.querySelector('.timeline-container');
+    if (!container) return;
+    const todayCell = container.querySelector('.timeline-day.today');
+    if (!todayCell) return;
+    // Scroll so today is near the left (offset by the label column width ~200px + some padding)
+    const labelColWidth = 200;
+    const offset = todayCell.offsetLeft - labelColWidth - 20;
+    container.scrollLeft = Math.max(0, offset);
+  }, 50);
 }
 
 function renderSidebar() {
@@ -299,6 +341,16 @@ function renderTimeline(groupBy) {
   minDate = addDays(minDate, -3);
   maxDate = addDays(maxDate, 7);
 
+  // Calculate current week bounds (Mon–Sun)
+  const todayDate = new Date();
+  const todayDow = todayDate.getDay();
+  const weekStartDate = new Date(todayDate);
+  weekStartDate.setDate(todayDate.getDate() - (todayDow === 0 ? 6 : todayDow - 1));
+  const weekEndDate = new Date(weekStartDate);
+  weekEndDate.setDate(weekStartDate.getDate() + 6);
+  const currentWeekStart = weekStartDate.toISOString().split('T')[0];
+  const currentWeekEnd = weekEndDate.toISOString().split('T')[0];
+
   const days = [];
   let cur = new Date(minDate + 'T00:00:00');
   const end = new Date(maxDate + 'T00:00:00');
@@ -310,6 +362,7 @@ function renderTimeline(groupBy) {
       dayName: cur.toLocaleString('en-US', { weekday: 'short' }).charAt(0),
       isWeekend: cur.getDay() === 0 || cur.getDay() === 6,
       isToday: dateStr === todayStr,
+      isCurrentWeek: dateStr >= currentWeekStart && dateStr <= currentWeekEnd,
       isFirstOfMonth: cur.getDate() === 1,
     });
     cur.setDate(cur.getDate() + 1);
@@ -330,7 +383,7 @@ function renderTimeline(groupBy) {
     <div class="timeline-label-col">${groupBy === 'owner' ? 'Owner' : 'Discipline'}</div><div class="timeline-dates">`;
 
   for (const day of days) {
-    html += `<div class="timeline-day ${day.isWeekend ? 'weekend' : ''} ${day.isToday ? 'today' : ''}">
+    html += `<div class="timeline-day ${day.isWeekend ? 'weekend' : ''} ${day.isToday ? 'today' : ''} ${day.isCurrentWeek ? 'current-week' : ''}">
       ${day.isFirstOfMonth || days.indexOf(day) === 0 ? `<div class="month-label">${day.month}</div>` : `<div class="day-name">${day.dayName}</div>`}
       <div class="day-num">${day.dayNum}</div></div>`;
   }
@@ -345,7 +398,8 @@ function renderTimeline(groupBy) {
 
   for (const key of sortedKeys) {
     const groupPhases = groups[key];
-    html += `<div class="timeline-group"><div class="timeline-group-header">${key} <span class="count" style="margin-left:8px;font-weight:400;color:var(--text-muted)">${groupPhases.length}</span></div>`;
+    const ownerColor = getOwnerColor(key);
+    html += `<div class="timeline-group"><div class="timeline-group-header"><span class="owner-color-dot" style="background:${ownerColor}"></span>${key} <span class="count" style="margin-left:8px;font-weight:400;color:var(--text-muted)">${groupPhases.length}</span></div>`;
 
     for (const phase of groupPhases) {
       const project = getProject(phase.projectId);
@@ -364,7 +418,7 @@ function renderTimeline(groupBy) {
         <div class="timeline-row-cells" style="position:relative;min-width:${days.length * 36}px">`;
 
       for (const day of days) {
-        html += `<div class="timeline-cell ${day.isWeekend ? 'weekend' : ''} ${day.isToday ? 'today' : ''}"></div>`;
+        html += `<div class="timeline-cell ${day.isWeekend ? 'weekend' : ''} ${day.isToday ? 'today' : ''} ${day.isCurrentWeek ? 'current-week' : ''}"></div>`;
       }
 
       html += `<div class="timeline-bar ${statusClass}" style="left:${left}px;width:${width}px"
@@ -1158,7 +1212,7 @@ function showViewProjectModal(projectId) {
           <span class="badge ${statusClass}">${project.status}</span>
           ${project.type ? `<span style="color:var(--text-dim);font-size:12px">${project.type}</span>` : ''}
           ${project.priority ? `<span style="color:var(--text-dim);font-size:12px">${project.priority}</span>` : ''}
-          ${project.lead ? `<span style="color:var(--text-dim);font-size:12px">Lead: ${project.lead}</span>` : ''}
+          <span style="color:var(--text-dim);font-size:12px">Lead: ${project.lead || 'Unassigned'}</span>
         </div>
 
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
@@ -1171,6 +1225,15 @@ function showViewProjectModal(projectId) {
             <label>Status</label>
             <select id="proj-detail-status">${statusOptions}</select>
           </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>Lead</label>
+            <select id="proj-detail-lead">
+              <option value="" ${!project.lead ? 'selected' : ''}>Unassigned</option>
+              ${state.teamMembers.filter(m => m !== 'Unassigned').map(m => `<option value="${m}" ${project.lead === m ? 'selected' : ''}>${m}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="form-row" style="margin-bottom:8px;">
           <div class="form-group" style="margin-bottom:0">
             <label>Start Date</label>
             <input type="date" id="proj-detail-start" value="${project.startDate || ''}" />
@@ -1251,6 +1314,7 @@ async function updateProject(projectId) {
 
   const updates = {
     status: document.getElementById('proj-detail-status').value,
+    lead: document.getElementById('proj-detail-lead').value,
     startDate: document.getElementById('proj-detail-start').value,
     targetDeadline: document.getElementById('proj-detail-deadline').value,
   };
