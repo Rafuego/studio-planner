@@ -133,6 +133,7 @@ async function dbUpdateProject(id, updates) {
   if (updates.lead !== undefined) dbUpdates.lead = updates.lead;
   if (updates.notes !== undefined) dbUpdates.notes = updates.notes;
   if (updates.priority !== undefined) dbUpdates.priority = updates.priority;
+  if (updates.type !== undefined) dbUpdates.type = updates.type;
 
   const { error } = await supabaseClient.from('projects').update(dbUpdates).eq('id', id);
   if (error) console.error('Update project error:', error);

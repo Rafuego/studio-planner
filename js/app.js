@@ -1265,6 +1265,18 @@ function showViewProjectModal(projectId) {
         </div>
         <div class="form-row" style="margin-bottom:8px;">
           <div class="form-group" style="margin-bottom:0">
+            <label>Client</label>
+            <input type="text" id="proj-detail-client" value="${project.client || ''}" placeholder="Client name" />
+          </div>
+          <div class="form-group" style="margin-bottom:0">
+            <label>Type</label>
+            <select id="proj-detail-type">
+              ${PROJECT_TYPES.map(t => `<option value="${t}" ${project.type === t ? 'selected' : ''}>${t}</option>`).join('')}
+            </select>
+          </div>
+        </div>
+        <div class="form-row" style="margin-bottom:8px;">
+          <div class="form-group" style="margin-bottom:0">
             <label>Start Date</label>
             <input type="date" id="proj-detail-start" value="${project.startDate || ''}" />
           </div>
@@ -1345,6 +1357,8 @@ async function updateProject(projectId) {
   const updates = {
     status: document.getElementById('proj-detail-status').value,
     lead: document.getElementById('proj-detail-lead').value,
+    client: document.getElementById('proj-detail-client').value,
+    type: document.getElementById('proj-detail-type').value,
     startDate: document.getElementById('proj-detail-start').value,
     targetDeadline: document.getElementById('proj-detail-deadline').value,
   };
