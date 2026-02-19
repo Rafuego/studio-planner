@@ -373,7 +373,17 @@ body {
 .phase-list-item:hover { background: var(--surface2); border-color: var(--border-light); }
 .phase-list-item.phase-done { opacity: 0.4; }
 .phase-list-item.phase-done:hover { opacity: 0.6; }
-.phase-list-item .phase-order { font-size: 11px; color: var(--text-muted); font-weight: 600; min-width: 20px; padding-top: 4px; }
+.phase-reorder-btns {
+  display: flex; flex-direction: column; align-items: center; gap: 1px; flex-shrink: 0; padding-top: 2px;
+}
+.phase-reorder-btn {
+  background: none; border: 1px solid transparent; color: var(--text-muted);
+  cursor: pointer; font-size: 8px; padding: 1px 4px; border-radius: 3px;
+  transition: all 0.15s; line-height: 1;
+}
+.phase-reorder-btn:hover:not(.disabled) { color: var(--accent); background: rgba(99,102,241,0.1); border-color: var(--accent); }
+.phase-reorder-btn.disabled { opacity: 0.2; cursor: default; }
+.phase-list-item .phase-order { font-size: 10px; color: var(--text-muted); font-weight: 600; line-height: 1; }
 .phase-list-item .phase-info { flex: 1; min-width: 0; }
 .phase-list-item .phase-info .name { font-size: 12px; font-weight: 500; }
 .phase-list-item .phase-info .meta { font-size: 11px; color: var(--text-dim); margin-top: 2px; }

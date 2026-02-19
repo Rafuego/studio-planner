@@ -1291,25 +1291,28 @@ async function updatePhase(phaseId) {
 // VIEW PROJECT MODAL
 // ============================================================
 
-function showViewProjectModal(projectId) {
-  const project = getProject(projectId);
-  if (!project) return;
-
+function buildPhaseListHtml(projectId) {
   const phases = getProjectPhases(projectId);
-  const progress = getProjectProgress(projectId);
-  const statusClass = 'badge-status-' + project.status.toLowerCase().replace(/\s+/g, '-');
-
   const memberOpts = state.teamMembers.map(m => m === 'Unassigned' ? `<option value="">Unassigned</option>` : `<option value="${m}">${m}</option>`).join('');
+  const totalPhases = phases.length;
 
-  let phasesHtml = '';
+  if (totalPhases === 0) return '<div style="color:var(--text-muted);font-size:12px;padding:12px;">No phases yet.</div>';
+
+  let html = '';
   for (const phase of phases) {
     const dur = phase.startDate && phase.endDate ? daysBetween(phase.startDate, phase.endDate) + 1 : 1;
     const statusOpts = PHASE_STATUSES.map(s => `<option value="${s}" ${phase.status === s ? 'selected' : ''}>${s}</option>`).join('');
     const ownerOpts = memberOpts.replace(`value="${phase.owner || ''}"`, `value="${phase.owner || ''}" selected`);
+    const isFirst = phase.sortOrder <= 1;
+    const isLast = phase.sortOrder >= totalPhases;
 
-    phasesHtml += `
+    html += `
       <div class="phase-list-item${phase.status === 'Done' ? ' phase-done' : ''}" data-phase-id="${phase.id}">
-        <span class="phase-order">${phase.sortOrder}</span>
+        <div class="phase-reorder-btns">
+          <button class="phase-reorder-btn${isFirst ? ' disabled' : ''}" data-action="move-phase-up" data-phase-id="${phase.id}" title="Move up"${isFirst ? ' disabled' : ''}>▲</button>
+          <span class="phase-order">${phase.sortOrder}</span>
+          <button class="phase-reorder-btn${isLast ? ' disabled' : ''}" data-action="move-phase-down" data-phase-id="${phase.id}" title="Move down"${isLast ? ' disabled' : ''}>▼</button>
+        </div>
         <div class="phase-info">
           <div class="name">${phase.name}</div>
           <div class="meta">${formatDate(phase.startDate)} – ${formatDate(phase.endDate)} · ${phase.discipline || '—'}</div>
@@ -1329,6 +1332,110 @@ function showViewProjectModal(projectId) {
         </div>
       </div>`;
   }
+  return html;
+}
+
+function attachPhaseListListeners(projectId) {
+  document.querySelectorAll('.phase-inline-select').forEach(el => {
+    el.addEventListener('change', async () => {
+      const phase = getPhase(el.dataset.phaseId);
+      if (!phase) return;
+      if (el.dataset.field === 'status') {
+        phase.status = el.value;
+        await dbUpdatePhase(phase.id, { status: el.value });
+      }
+      if (el.dataset.field === 'owner') {
+        phase.owner = el.value;
+        await dbUpdatePhase(phase.id, { owner: el.value });
+      }
+      await dbLoadAll();
+      refreshProjectModalPhases(projectId);
+    });
+    el.addEventListener('click', (e) => e.stopPropagation());
+  });
+
+  document.querySelectorAll('.phase-inline-input').forEach(el => {
+    el.addEventListener('change', async () => {
+      const phase = getPhase(el.dataset.phaseId);
+      if (!phase) return;
+      const newDur = Math.max(parseInt(el.value) || 1, 1);
+      phase.endDate = addDays(phase.startDate, newDur - 1);
+      await dbUpdatePhase(phase.id, { endDate: phase.endDate });
+
+      cascadePhases(phase.projectId);
+      const allProjectPhases = getProjectPhases(phase.projectId);
+      if (allProjectPhases.length > 0) {
+        await dbBatchUpdatePhases(allProjectPhases);
+      }
+
+      await dbLoadAll();
+      refreshProjectModalPhases(projectId);
+    });
+    el.addEventListener('click', (e) => e.stopPropagation());
+  });
+}
+
+function refreshProjectModalPhases(projectId) {
+  const container = document.getElementById('phase-list-container');
+  if (!container) return;
+  const phases = getProjectPhases(projectId);
+  const progress = getProjectProgress(projectId);
+
+  container.innerHTML = buildPhaseListHtml(projectId);
+
+  // Update phase count label
+  const countLabel = document.getElementById('phase-count-label');
+  if (countLabel) countLabel.textContent = `Phases (${phases.length})`;
+
+  // Update progress bar
+  const progressFill = document.getElementById('proj-progress-fill');
+  const progressText = document.getElementById('proj-progress-text');
+  if (progressFill) progressFill.style.width = progress + '%';
+  if (progressText) progressText.textContent = `${progress}% (${phases.filter(p => p.status === 'Done').length}/${phases.length} phases)`;
+
+  attachPhaseListListeners(projectId);
+}
+
+async function movePhase(phaseId, direction) {
+  const phase = getPhase(phaseId);
+  if (!phase) return;
+
+  const phases = getProjectPhases(phase.projectId);
+  const idx = phases.findIndex(p => p.id === phaseId);
+  if (idx < 0) return;
+
+  const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+  if (swapIdx < 0 || swapIdx >= phases.length) return;
+
+  // Swap sort orders
+  const tempOrder = phases[idx].sortOrder;
+  phases[idx].sortOrder = phases[swapIdx].sortOrder;
+  phases[swapIdx].sortOrder = tempOrder;
+
+  // Save both to DB
+  await Promise.all([
+    dbUpdatePhase(phases[idx].id, { sortOrder: phases[idx].sortOrder }),
+    dbUpdatePhase(phases[swapIdx].id, { sortOrder: phases[swapIdx].sortOrder }),
+  ]);
+
+  // Re-cascade dates based on new order
+  cascadePhases(phase.projectId);
+  const allProjectPhases = getProjectPhases(phase.projectId);
+  if (allProjectPhases.length > 0) {
+    await dbBatchUpdatePhases(allProjectPhases);
+  }
+
+  await dbLoadAll();
+  refreshProjectModalPhases(phase.projectId);
+}
+
+function showViewProjectModal(projectId) {
+  const project = getProject(projectId);
+  if (!project) return;
+
+  const phases = getProjectPhases(projectId);
+  const progress = getProjectProgress(projectId);
+  const statusClass = 'badge-status-' + project.status.toLowerCase().replace(/\s+/g, '-');
 
   const statusOptions = PROJECT_STATUSES.map(s => `<option value="${s}" ${project.status === s ? 'selected' : ''}>${s}</option>`).join('');
 
@@ -1344,8 +1451,8 @@ function showViewProjectModal(projectId) {
         </div>
 
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
-          <div class="progress-bar" style="width:120px"><div class="progress-bar-fill" style="width:${progress}%"></div></div>
-          <span class="progress-text">${progress}% (${phases.filter(p=>p.status==='Done').length}/${phases.length} phases)</span>
+          <div class="progress-bar" style="width:120px"><div class="progress-bar-fill" id="proj-progress-fill" style="width:${progress}%"></div></div>
+          <span class="progress-text" id="proj-progress-text">${progress}% (${phases.filter(p=>p.status==='Done').length}/${phases.length} phases)</span>
         </div>
 
         <div class="form-row" style="margin-bottom:8px;">
@@ -1392,10 +1499,12 @@ function showViewProjectModal(projectId) {
         ${project.notes ? `<div style="font-size:12px;color:var(--text-dim);margin-bottom:16px;padding:8px 12px;background:var(--surface2);border-radius:var(--radius)">${project.notes}</div>` : ''}
 
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-          <label style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted)">Phases (${phases.length})</label>
+          <label id="phase-count-label" style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted)">Phases (${phases.length})</label>
           <button class="btn btn-sm" data-action="add-phase-to-project" data-project-id="${project.id}">+ Add Phase</button>
         </div>
-        ${phasesHtml || '<div style="color:var(--text-muted);font-size:12px;padding:12px;">No phases yet.</div>'}
+        <div id="phase-list-container">
+          ${buildPhaseListHtml(projectId)}
+        </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-danger" data-action="delete-project" data-project-id="${project.id}">Delete Project</button>
@@ -1408,43 +1517,7 @@ function showViewProjectModal(projectId) {
 
   // Attach inline phase control listeners
   setTimeout(() => {
-    document.querySelectorAll('.phase-inline-select').forEach(el => {
-      el.addEventListener('change', async () => {
-        const phase = getPhase(el.dataset.phaseId);
-        if (!phase) return;
-        if (el.dataset.field === 'status') {
-          await dbUpdatePhase(phase.id, { status: el.value });
-        }
-        if (el.dataset.field === 'owner') {
-          await dbUpdatePhase(phase.id, { owner: el.value });
-        }
-        await dbLoadAll();
-        closeModal();
-        showViewProjectModal(projectId);
-      });
-      el.addEventListener('click', (e) => e.stopPropagation());
-    });
-
-    document.querySelectorAll('.phase-inline-input').forEach(el => {
-      el.addEventListener('change', async () => {
-        const phase = getPhase(el.dataset.phaseId);
-        if (!phase) return;
-        const newDur = Math.max(parseInt(el.value) || 1, 1);
-        phase.endDate = addDays(phase.startDate, newDur - 1);
-        await dbUpdatePhase(phase.id, { endDate: phase.endDate });
-
-        cascadePhases(phase.projectId);
-        const allProjectPhases = getProjectPhases(phase.projectId);
-        if (allProjectPhases.length > 0) {
-          await dbBatchUpdatePhases(allProjectPhases);
-        }
-
-        await dbLoadAll();
-        closeModal();
-        showViewProjectModal(projectId);
-      });
-      el.addEventListener('click', (e) => e.stopPropagation());
-    });
+    attachPhaseListListeners(projectId);
   }, 60);
 }
 
@@ -1612,13 +1685,22 @@ async function handleAction(e) {
           await dbBatchUpdatePhases(allProjectPhases);
         }
         await dbLoadAll();
-        closeModal();
-        showViewProjectModal(projectId);
+        refreshProjectModalPhases(projectId);
       } else {
         await dbLoadAll();
         closeModal();
         render();
       }
+      break;
+    }
+    case 'move-phase-up': {
+      const phaseId = target.dataset.phaseId;
+      if (phaseId) await movePhase(phaseId, 'up');
+      break;
+    }
+    case 'move-phase-down': {
+      const phaseId = target.dataset.phaseId;
+      if (phaseId) await movePhase(phaseId, 'down');
       break;
     }
     case 'view-project': {
@@ -1656,8 +1738,7 @@ async function handleAction(e) {
           await dbBatchUpdatePhases(allProjectPhases);
         }
         await dbLoadAll();
-        closeModal();
-        showViewProjectModal(projectId);
+        refreshProjectModalPhases(projectId);
       }
       break;
     }
