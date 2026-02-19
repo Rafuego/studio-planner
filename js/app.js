@@ -296,6 +296,9 @@ function scrollTimelineToToday() {
   }, 50);
 }
 
+// Track whether the owner timeline dropdown is expanded
+let _ownerTimelineExpanded = false;
+
 function renderSidebar() {
   const sections = {};
   for (const [key, v] of Object.entries(VIEWS)) {
@@ -303,13 +306,41 @@ function renderSidebar() {
     sections[v.section].push({ key, ...v });
   }
 
+  // Auto-expand if viewing an individual owner timeline
+  if (currentView.startsWith('phases-timeline-owner-')) _ownerTimelineExpanded = true;
+
+  // Get unique owners who have active phases (for sub-items)
+  const activeOwners = [...new Set(
+    state.phases.filter(p => p.owner && p.owner !== 'Unassigned' && p.status !== 'Done')
+      .map(p => p.owner)
+  )].sort();
+
   let html = `<div class="sidebar"><div class="sidebar-header"><h1>Studio Planner</h1><p>Capacity & Timeline</p></div>`;
 
   for (const [section, items] of Object.entries(sections)) {
     html += `<div class="nav-section"><div class="nav-section-label">${section}</div>`;
     for (const item of items) {
-      html += `<div class="nav-item ${currentView === item.key ? 'active' : ''}" data-view="${item.key}">
-        <span class="icon">${item.icon}</span> ${item.label}</div>`;
+      if (item.key === 'phases-timeline-owner') {
+        // Expandable "Timeline by Owner" with dropdown arrow
+        const isActive = currentView === item.key;
+        const isExpanded = _ownerTimelineExpanded;
+        html += `<div class="nav-item ${isActive ? 'active' : ''} ${isExpanded ? 'expanded' : ''}" data-view="${item.key}">
+          <span class="icon">${item.icon}</span> ${item.label}<span class="expand-arrow" data-action="toggle-owner-timeline">▶</span></div>`;
+        // Sub-items for each team member
+        if (isExpanded && activeOwners.length > 0) {
+          html += `<div class="nav-sub-items">`;
+          for (const owner of activeOwners) {
+            const ownerView = 'phases-timeline-owner-' + owner;
+            const ownerColor = getOwnerColor(owner);
+            html += `<div class="nav-sub-item ${currentView === ownerView ? 'active' : ''}" data-view="${ownerView}">
+              <span class="owner-dot" style="background:${ownerColor}"></span>${owner}</div>`;
+          }
+          html += `</div>`;
+        }
+      } else {
+        html += `<div class="nav-item ${currentView === item.key ? 'active' : ''}" data-view="${item.key}">
+          <span class="icon">${item.icon}</span> ${item.label}</div>`;
+      }
     }
     html += `</div>`;
   }
@@ -319,7 +350,14 @@ function renderSidebar() {
 }
 
 function renderToolbar() {
-  const view = VIEWS[currentView];
+  let view = VIEWS[currentView];
+  // Dynamic label for individual owner timeline views
+  if (!view && currentView.startsWith('phases-timeline-owner-')) {
+    const ownerName = currentView.replace('phases-timeline-owner-', '');
+    view = { label: `${ownerName}'s Timeline`, icon: '◫', section: 'Phases' };
+  }
+  if (!view) view = { label: '', icon: '', section: '' };
+
   let rightButtons = '';
   if (currentView.startsWith('projects')) {
     rightButtons = `<button class="btn btn-primary" data-action="new-project">+ New Project</button>`;
@@ -334,6 +372,11 @@ function renderToolbar() {
 }
 
 function renderContent() {
+  // Individual owner timeline views: phases-timeline-owner-{name}
+  if (currentView.startsWith('phases-timeline-owner-') && currentView !== 'phases-timeline-owner') {
+    const ownerName = currentView.replace('phases-timeline-owner-', '');
+    return renderTimeline('owner', ownerName);
+  }
   switch (currentView) {
     case 'phases-timeline-owner': return renderTimeline('owner');
     case 'phases-timeline-discipline': return renderTimeline('discipline');
@@ -353,8 +396,11 @@ function renderContent() {
 // TIMELINE VIEW
 // ============================================================
 
-function renderTimeline(groupBy) {
-  const phases = state.phases.filter(p => p.status !== 'Done' && p.startDate && p.endDate && phaseMatchesSearch(p, searchQuery));
+function renderTimeline(groupBy, filterOwner) {
+  let phases = state.phases.filter(p => p.status !== 'Done' && p.startDate && p.endDate && phaseMatchesSearch(p, searchQuery));
+  if (filterOwner) {
+    phases = phases.filter(p => (p.owner || 'Unassigned') === filterOwner);
+  }
 
   if (phases.length === 0) {
     return searchQuery
@@ -1427,6 +1473,20 @@ async function updateProject(projectId) {
 
 function attachEvents() {
   document.querySelectorAll('.nav-item[data-view]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      // If clicking the expand arrow, toggle dropdown instead of navigating
+      if (e.target.dataset.action === 'toggle-owner-timeline') {
+        e.stopPropagation();
+        _ownerTimelineExpanded = !_ownerTimelineExpanded;
+        render();
+        return;
+      }
+      searchQuery = ''; currentView = el.dataset.view; render();
+    });
+  });
+
+  // Sub-nav items for individual owner timelines
+  document.querySelectorAll('.nav-sub-item[data-view]').forEach(el => {
     el.addEventListener('click', () => { searchQuery = ''; currentView = el.dataset.view; render(); });
   });
 
