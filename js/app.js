@@ -273,7 +273,9 @@ const VIEWS = {
 
 function render() {
   const app = document.getElementById('app');
-  app.innerHTML = `${renderSidebar()}<div class="main">${renderToolbar()}<div class="content" id="content">${renderContent()}</div></div>`;
+  const isTimeline = currentView.startsWith('phases-timeline');
+  const contentClass = isTimeline ? 'content content-timeline' : 'content';
+  app.innerHTML = `${renderSidebar()}<div class="main">${renderToolbar()}<div class="${contentClass}" id="content">${renderContent()}</div></div>`;
   attachEvents();
   // Auto-scroll timeline to today
   if (currentView.startsWith('phases-timeline')) {
