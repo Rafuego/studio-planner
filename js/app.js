@@ -214,6 +214,67 @@ function redistributePhases(projectId, projectStart, projectEnd) {
   }
 }
 
+function redistributeRemainingPhases(projectId) {
+  const allPhases = state.phases
+    .filter(p => p.projectId === projectId)
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  if (allPhases.length === 0) return;
+
+  // Find the last Done phase to anchor from
+  const remaining = allPhases.filter(p => p.status !== 'Done');
+  if (remaining.length === 0) return;
+
+  // Start from today (or the day after the last Done phase, whichever is later)
+  const todayStr = today();
+  const donePhases = allPhases.filter(p => p.status === 'Done');
+  let cursor = todayStr;
+  if (donePhases.length > 0) {
+    const lastDoneEnd = donePhases[donePhases.length - 1].endDate;
+    if (lastDoneEnd) {
+      const dayAfterDone = addDays(lastDoneEnd, 1);
+      if (dayAfterDone > cursor) cursor = dayAfterDone;
+    }
+  }
+
+  // Get the project deadline for reference
+  const project = getProject(projectId);
+  const deadline = project ? project.targetDeadline : null;
+
+  // Calculate total remaining duration proportionally
+  const durations = remaining.map(p => {
+    if (p.startDate && p.endDate) return Math.max(daysBetween(p.startDate, p.endDate) + 1, 1);
+    return p._templateDuration || 1;
+  });
+
+  // If there's a deadline and it's after cursor, scale to fit
+  if (deadline && deadline > cursor) {
+    const availableDays = daysBetween(cursor, deadline) + 1;
+    const totalDur = durations.reduce((s, d) => s + d, 0);
+
+    let scaled = durations.map(d => Math.max(Math.round((d / totalDur) * availableDays), 1));
+    let scaledTotal = scaled.reduce((s, d) => s + d, 0);
+    const diff = availableDays - scaledTotal;
+    if (diff !== 0) {
+      const longestIdx = scaled.indexOf(Math.max(...scaled));
+      scaled[longestIdx] = Math.max(scaled[longestIdx] + diff, 1);
+    }
+
+    for (let i = 0; i < remaining.length; i++) {
+      remaining[i].startDate = cursor;
+      remaining[i].endDate = addDays(cursor, scaled[i] - 1);
+      cursor = addDays(remaining[i].endDate, 1);
+    }
+  } else {
+    // No deadline or deadline is in the past — just cascade from cursor preserving durations
+    for (let i = 0; i < remaining.length; i++) {
+      remaining[i].startDate = cursor;
+      remaining[i].endDate = addDays(cursor, durations[i] - 1);
+      cursor = addDays(remaining[i].endDate, 1);
+    }
+  }
+}
+
 function renumberPhases(projectId) {
   const phases = state.phases
     .filter(p => p.projectId === projectId)
@@ -1490,9 +1551,12 @@ function showViewProjectModal(projectId) {
             <input type="date" id="proj-detail-deadline" value="${project.targetDeadline || ''}" />
           </div>
         </div>
-        <div style="margin-bottom:16px;">
+        <div style="margin-bottom:16px;display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-sm" data-action="redistribute-phases" data-project-id="${project.id}" style="font-size:11px;">
             Redistribute Phases to Fit Dates
+          </button>
+          <button class="btn btn-sm" data-action="redistribute-remaining" data-project-id="${project.id}" style="font-size:11px;">
+            Redistribute Current Timeline
           </button>
         </div>
 
@@ -1740,6 +1804,17 @@ async function handleAction(e) {
         await dbLoadAll();
         refreshProjectModalPhases(projectId);
       }
+      break;
+    }
+    case 'redistribute-remaining': {
+      const projectId = target.dataset.projectId;
+      redistributeRemainingPhases(projectId);
+      const allProjectPhases = getProjectPhases(projectId);
+      if (allProjectPhases.length > 0) {
+        await dbBatchUpdatePhases(allProjectPhases);
+      }
+      await dbLoadAll();
+      refreshProjectModalPhases(projectId);
       break;
     }
     case 'close-modal': {
