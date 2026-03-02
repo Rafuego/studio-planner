@@ -280,6 +280,15 @@ body {
 .timeline-bar.status-revisions { background: var(--orange); }
 .timeline-bar.status-waiting-on-client { background: var(--yellow-dim); }
 .timeline-bar.status-done { background: var(--green-dim); opacity: 0.6; }
+.timeline-bar.overdue { outline: 2px solid var(--red); outline-offset: -1px; animation: overdue-pulse 2s ease-in-out infinite; }
+
+/* Overdue indicators */
+@keyframes overdue-pulse { 0%,100% { outline-color: var(--red); } 50% { outline-color: rgba(239,68,68,0.4); } }
+.overdue-badge { display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 99px; font-size: 10px; font-weight: 600; background: rgba(239,68,68,0.15); color: var(--red); white-space: nowrap; gap: 3px; }
+.board-card.overdue { border-color: var(--red); border-left: 3px solid var(--red); }
+.phase-list-item.overdue { border-color: rgba(239,68,68,0.4); border-left: 3px solid var(--red); }
+.data-table tr.overdue td { border-left: 3px solid var(--red); }
+.data-table tr.overdue td:first-child { padding-left: 9px; }
 
 .board { display: flex; gap: 16px; overflow-x: auto; padding-bottom: 16px; align-items: flex-start; }
 

@@ -307,6 +307,26 @@ function getNextPhaseDue(projectId) {
 function getProject(id) { return state.projects.find(p => p.id === id); }
 function getPhase(id) { return state.phases.find(p => p.id === id); }
 
+function isPhaseOverdue(phase) {
+  return phase.endDate && phase.status !== 'Done' && phase.endDate < today();
+}
+
+// Auto-advance: when a phase is marked Done, set the next phase to In Progress
+async function autoAdvanceNextPhase(phaseId) {
+  const phase = getPhase(phaseId);
+  if (!phase || phase.status !== 'Done') return;
+
+  const phases = getProjectPhases(phase.projectId);
+  const idx = phases.findIndex(p => p.id === phaseId);
+  if (idx < 0 || idx >= phases.length - 1) return;
+
+  const nextPhase = phases[idx + 1];
+  if (nextPhase.status === 'Not Started') {
+    nextPhase.status = 'In Progress';
+    await dbUpdatePhase(nextPhase.id, { status: 'In Progress' });
+  }
+}
+
 function getOwnerForRole(role) {
   return state.roleAssignments[role] || '';
 }
@@ -552,10 +572,11 @@ function renderTimeline(groupBy, filterOwner) {
       const width = Math.max(((endIdx >= 0 ? endIdx : days.length - 1) - (startIdx >= 0 ? startIdx : 0) + 1) * 36 - 4, 32);
       const statusClass = 'status-' + phase.status.toLowerCase().replace(/\s+/g, '-');
       const doneClass = phase.status === 'Done' ? ' phase-done' : '';
+      const overdueClass = isPhaseOverdue(phase) ? ' overdue' : '';
 
       html += `<div class="timeline-row${doneClass}" style="min-width:${totalWidth}px">
         <div class="timeline-row-label" data-phase-id="${phase.id}" data-action="edit-phase">
-          <div class="phase-name">${phase.name}</div>
+          <div class="phase-name">${phase.name}${isPhaseOverdue(phase) ? ' <span class="overdue-badge">Overdue</span>' : ''}</div>
           <div class="project-name">${projectName}</div>
         </div>
         <div class="timeline-row-cells" style="position:relative;min-width:${days.length * 36}px">`;
@@ -564,9 +585,9 @@ function renderTimeline(groupBy, filterOwner) {
         html += `<div class="timeline-cell ${day.isWeekend ? 'weekend' : ''} ${day.isToday ? 'today' : ''} ${day.isCurrentWeek ? 'current-week' : ''}"></div>`;
       }
 
-      html += `<div class="timeline-bar ${statusClass}" style="left:${left}px;width:${width}px"
+      html += `<div class="timeline-bar ${statusClass}${overdueClass}" style="left:${left}px;width:${width}px"
         data-phase-id="${phase.id}" data-action="edit-phase"
-        data-tooltip-title="${phase.name}"
+        data-tooltip-title="${phase.name}${isPhaseOverdue(phase) ? ' ⚠ OVERDUE' : ''}"
         data-tooltip-meta="${projectName} · ${formatDate(phase.startDate)} – ${formatDate(phase.endDate)} · ${phase.status}">
         ${phase.name}</div></div></div>`;
     }
@@ -592,8 +613,10 @@ function renderBoard() {
 
     for (const phase of items) {
       const project = getProject(phase.projectId);
-      html += `<div class="board-card${phase.status === 'Done' ? ' phase-done' : ''}" data-phase-id="${phase.id}" data-action="edit-phase">
-        <div class="card-title">${phase.name}</div>
+      const doneClass = phase.status === 'Done' ? ' phase-done' : '';
+      const overdueClass = isPhaseOverdue(phase) ? ' overdue' : '';
+      html += `<div class="board-card${doneClass}${overdueClass}" data-phase-id="${phase.id}" data-action="edit-phase">
+        <div class="card-title">${phase.name}${isPhaseOverdue(phase) ? ' <span class="overdue-badge">Overdue</span>' : ''}</div>
         <div class="card-meta">
           ${project ? `<span>${project.name}</span>` : ''}
           ${phase.owner ? `<span>· ${phase.owner}</span>` : ''}
@@ -675,8 +698,9 @@ function renderThisWeek() {
     }
     const project = getProject(phase.projectId);
     const statusClass = 'badge-status-' + phase.status.toLowerCase().replace(/\s+/g, '-');
-    html += `<tr class="clickable" data-phase-id="${phase.id}" data-action="edit-phase">
-      <td>${phase.name}</td>
+    const overdueClass = isPhaseOverdue(phase) ? ' overdue' : '';
+    html += `<tr class="clickable${overdueClass}" data-phase-id="${phase.id}" data-action="edit-phase">
+      <td>${phase.name}${isPhaseOverdue(phase) ? ' <span class="overdue-badge">Overdue</span>' : ''}</td>
       <td style="color:var(--text-dim)">${project ? project.name : '—'}</td>
       <td>${phase.owner || '—'}</td>
       <td><span class="badge ${statusClass}">${phase.status}</span></td>
@@ -701,8 +725,9 @@ function renderBlocked() {
 
   for (const phase of phases) {
     const project = getProject(phase.projectId);
-    html += `<tr class="clickable" data-phase-id="${phase.id}" data-action="edit-phase">
-      <td>${phase.name}</td>
+    const overdueClass = isPhaseOverdue(phase) ? ' overdue' : '';
+    html += `<tr class="clickable${overdueClass}" data-phase-id="${phase.id}" data-action="edit-phase">
+      <td>${phase.name}${isPhaseOverdue(phase) ? ' <span class="overdue-badge">Overdue</span>' : ''}</td>
       <td style="color:var(--text-dim)">${project ? project.name : '—'}</td>
       <td>${phase.owner || '—'}</td>
       <td>${formatDate(phase.endDate)}</td>
@@ -727,12 +752,14 @@ function renderProjectsTable(filterStatus) {
   const waitingCount = state.projects.filter(p => p.status === 'Waiting on Client').length;
   const incomingCount = state.projects.filter(p => p.status === 'Incoming').length;
   const totalPhases = state.phases.filter(p => p.status !== 'Done').length;
+  const overdueCount = state.phases.filter(p => isPhaseOverdue(p)).length;
 
   let html = `<div class="stats-bar">
     <div class="stat"><span class="stat-value">${activeCount}</span><span class="stat-label">Active</span></div>
     <div class="stat"><span class="stat-value">${waitingCount}</span><span class="stat-label">Waiting</span></div>
     <div class="stat"><span class="stat-value">${incomingCount}</span><span class="stat-label">Incoming</span></div>
     <div class="stat"><span class="stat-value">${totalPhases}</span><span class="stat-label">Open Phases</span></div>
+    ${overdueCount > 0 ? `<div class="stat"><span class="stat-value" style="color:var(--red)">${overdueCount}</span><span class="stat-label" style="color:var(--red)">Overdue</span></div>` : ''}
   </div>`;
 
   if (projects.length === 0) {
@@ -1329,6 +1356,11 @@ async function updatePhase(phaseId) {
 
   await dbUpdatePhase(phase.id, phase);
 
+  // Auto-advance next phase when marking Done
+  if (phase.status === 'Done') {
+    await autoAdvanceNextPhase(phase.id);
+  }
+
   // Cascade all phases after this one
   cascadePhases(phase.projectId);
   const allProjectPhases = getProjectPhases(phase.projectId);
@@ -1367,15 +1399,17 @@ function buildPhaseListHtml(projectId) {
     const isFirst = phase.sortOrder <= 1;
     const isLast = phase.sortOrder >= totalPhases;
 
+    const doneClass = phase.status === 'Done' ? ' phase-done' : '';
+    const overdueClass = isPhaseOverdue(phase) ? ' overdue' : '';
     html += `
-      <div class="phase-list-item${phase.status === 'Done' ? ' phase-done' : ''}" data-phase-id="${phase.id}">
+      <div class="phase-list-item${doneClass}${overdueClass}" data-phase-id="${phase.id}">
         <div class="phase-reorder-btns">
           <button class="phase-reorder-btn${isFirst ? ' disabled' : ''}" data-action="move-phase-up" data-phase-id="${phase.id}" title="Move up"${isFirst ? ' disabled' : ''}>▲</button>
           <span class="phase-order">${phase.sortOrder}</span>
           <button class="phase-reorder-btn${isLast ? ' disabled' : ''}" data-action="move-phase-down" data-phase-id="${phase.id}" title="Move down"${isLast ? ' disabled' : ''}>▼</button>
         </div>
         <div class="phase-info">
-          <div class="name">${phase.name}</div>
+          <div class="name">${phase.name}${isPhaseOverdue(phase) ? ' <span class="overdue-badge">Overdue</span>' : ''}</div>
           <div class="meta">${formatDate(phase.startDate)} – ${formatDate(phase.endDate)} · ${phase.discipline || '—'}</div>
         </div>
         <div class="phase-controls">
@@ -1404,6 +1438,10 @@ function attachPhaseListListeners(projectId) {
       if (el.dataset.field === 'status') {
         phase.status = el.value;
         await dbUpdatePhase(phase.id, { status: el.value });
+        // Auto-advance next phase when marking Done
+        if (el.value === 'Done') {
+          await autoAdvanceNextPhase(phase.id);
+        }
       }
       if (el.dataset.field === 'owner') {
         phase.owner = el.value;
